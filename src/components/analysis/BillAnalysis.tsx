@@ -4,21 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ProcessingResponse, ExtractedLineItem } from '../../services/api';
 import { useEmotionalTheme, EmotionalState } from '../../theme';
 import { LineItem } from './LineItem';
+import { getExplanation, formatExplanationText, LineItemExplanation } from '../../services/explanationService';
 
 interface BillAnalysisProps {
   result: ProcessingResponse;
   onComplete: () => void;
 }
-
-// Mock explanations for demo
-const mockExplanations: Record<string, string> = {
-  '99213': `This is a standard office visit for an established patient. The "Level 3" means moderate complexity - your doctor spent about 15-30 minutes with you discussing symptoms and treatment. This is one of the most common billing codes. Average cost: $100-150. Your charge of $185 is slightly above average but within normal range for hospital-based practices.`,
-  '36415': `This is the charge for drawing your blood (venipuncture). A trained phlebotomist inserted a needle into your vein to collect blood samples. This is a routine procedure. Average cost: $20-40. Your charge of $45 is reasonable.`,
-  '80053': `The Comprehensive Metabolic Panel tests 14 different things in your blood including glucose, calcium, kidney function, and liver function. It's a standard screening test. Average cost: $100-200. Your charge of $287 is on the higher end - you might want to ask about this.`,
-  '85025': `A Complete Blood Count (CBC) measures your red blood cells, white blood cells, and platelets. It helps detect infections, anemia, and other conditions. Average cost: $50-100. Your charge of $156 is above average.`,
-  '81001': `This is a basic urinalysis using a dipstick test. It checks for infections, kidney problems, and diabetes. Very routine test. Average cost: $30-50. Your charge of $78 is higher than typical.`,
-  'default': `This appears to be a facility or administrative fee. These charges cover the overhead costs of the medical facility including equipment, staff, and building maintenance. While common, facility fees can vary widely and are often negotiable.`
-};
 
 // Animations (fogClear reserved for future use)
 
@@ -144,6 +135,36 @@ const ActionButton = styled(motion.button)<{ $variant?: 'primary' | 'secondary' 
   `}
 `;
 
+const DisputeAlert = styled(motion.div)`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: ${({ theme }) => theme.colors.danger}15;
+  border: 2px solid ${({ theme }) => theme.colors.danger};
+  border-radius: ${({ theme }) => theme.spacing.borderRadius}px;
+`;
+
+const DisputeIcon = styled.span`
+  font-size: 2rem;
+`;
+
+const DisputeInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+`;
+
+const DisputeTitle = styled.span`
+  font-weight: 600;
+  color: ${({ theme }) => theme.colors.danger};
+`;
+
+const DisputeText = styled.span`
+  font-size: 0.875rem;
+  color: ${({ theme }) => theme.colors.text};
+`;
+
 const exorcismMessages = [
   "The spirits are revealing the truth...",
   "Decoding the ancient billing runes...",
@@ -157,9 +178,12 @@ const exorcismMessages = [
 
 export const BillAnalysis: React.FC<BillAnalysisProps> = ({ result, onComplete }) => {
   const { setEmotionalState } = useEmotionalTheme();
-  const [explanations, setExplanations] = useState<Record<string, string>>({});
+  const [explanations, setExplanations] = useState<Record<string, LineItemExplanation>>({});
+  const [formattedExplanations, setFormattedExplanations] = useState<Record<string, string>>({});
   const [loadingItems, setLoadingItems] = useState<Set<string>>(new Set());
   const [currentMessage, setCurrentMessage] = useState(exorcismMessages[0]);
+  const [disputeCount, setDisputeCount] = useState(0);
+  const [potentialSavings, setPotentialSavings] = useState(0);
 
   const explainedCount = Object.keys(explanations).length;
   const totalItems = result.lineItems.length;
@@ -178,6 +202,18 @@ export const BillAnalysis: React.FC<BillAnalysisProps> = ({ result, onComplete }
       setEmotionalState(EmotionalState.RELIEVED);
     }
   }, [progress, setEmotionalState]);
+
+  // Calculate dispute stats when explanations change
+  useEffect(() => {
+    const disputes = Object.values(explanations).filter(e => e.disputeRecommendation?.shouldDispute);
+    setDisputeCount(disputes.length);
+    
+    // Estimate potential savings (rough estimate based on disputed items)
+    const savings = result.lineItems
+      .filter(item => explanations[item.id]?.disputeRecommendation?.shouldDispute)
+      .reduce((sum, item) => sum + (item.amount || 0) * 0.3, 0); // Assume 30% potential reduction
+    setPotentialSavings(savings);
+  }, [explanations, result.lineItems]);
 
   // Rotate exorcism messages
   useEffect(() => {
@@ -199,21 +235,28 @@ export const BillAnalysis: React.FC<BillAnalysisProps> = ({ result, onComplete }
 
     setLoadingItems(prev => new Set(prev).add(item.id));
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+    try {
+      // Use the explanation service (real API or mock)
+      const explanation = await getExplanation(item, {
+        provider: result.metadata.provider,
+        serviceDate: result.metadata.serviceDate
+      });
 
-    // Get explanation (mock for demo)
-    const explanation = item.code 
-      ? mockExplanations[item.code] || mockExplanations['default']
-      : mockExplanations['default'];
-
-    setExplanations(prev => ({ ...prev, [item.id]: explanation }));
-    setLoadingItems(prev => {
-      const next = new Set(prev);
-      next.delete(item.id);
-      return next;
-    });
-  }, [explanations, loadingItems]);
+      setExplanations(prev => ({ ...prev, [item.id]: explanation }));
+      setFormattedExplanations(prev => ({ 
+        ...prev, 
+        [item.id]: formatExplanationText(explanation) 
+      }));
+    } catch (error) {
+      console.error('Failed to get explanation:', error);
+    } finally {
+      setLoadingItems(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }, [explanations, loadingItems, result.metadata]);
 
   const handleExplainAll = useCallback(async () => {
     for (const item of result.lineItems) {
@@ -279,12 +322,27 @@ export const BillAnalysis: React.FC<BillAnalysisProps> = ({ result, onComplete }
             item={item}
             index={index}
             isExplained={!!explanations[item.id]}
-            explanation={explanations[item.id]}
+            explanation={formattedExplanations[item.id]}
             onExplain={() => handleExplain(item)}
             isLoading={loadingItems.has(item.id)}
           />
         ))}
       </LineItemsContainer>
+
+      {isComplete && disputeCount > 0 && (
+        <DisputeAlert
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <DisputeIcon>⚠️</DisputeIcon>
+          <DisputeInfo>
+            <DisputeTitle>Found {disputeCount} charge(s) to review!</DisputeTitle>
+            <DisputeText>
+              Potential savings: up to ${potentialSavings.toFixed(2)}
+            </DisputeText>
+          </DisputeInfo>
+        </DisputeAlert>
+      )}
 
       <TotalSection $isComplete={isComplete} layout>
         <TotalLabel>

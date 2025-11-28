@@ -8,6 +8,7 @@ import { mockApiService, isDemoMode } from './mockApi';
 
 export * from './api';
 export { isDemoMode } from './mockApi';
+export * from './explanationService';
 
 /**
  * Get the active API service (real or mock)

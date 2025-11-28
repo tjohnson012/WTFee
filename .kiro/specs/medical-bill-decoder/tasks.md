@@ -34,6 +34,9 @@
   - Create error handling with spooky but clear messaging
   - _Requirements: 1.1, 1.2, 1.5, 4.1, 4.2_
 
+
+
+
 - [ ] 3. Implement AWS Textract integration for document processing
   - Set up AWS Lambda function for document processing with Textract
   - Create API Gateway endpoints for file upload and processing status
