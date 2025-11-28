@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { EmotionalThemeProvider, EmotionalState, useEmotionalTheme } from './theme';
 import { GlobalStyles } from './styles/GlobalStyles';
 import { AppLayout } from './components/layout';
 import { FlickerText } from './components/effects';
 import { UploadZone, UploadProgress, DocumentPreview } from './components/upload';
+import { uploadAndProcessDocument, ProcessingResponse, isDemoMode } from './services';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -98,12 +99,80 @@ const Divider = styled.div`
   margin: 1rem 0;
 `;
 
+const ErrorDisplay = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid ${({ theme }) => theme.colors.danger};
+  border-radius: ${({ theme }) => theme.spacing.borderRadius}px;
+  color: ${({ theme }) => theme.colors.danger};
+`;
+
+const RetryButton = styled.button`
+  padding: 0.5rem 1rem;
+  background: ${({ theme }) => theme.colors.danger};
+  color: white;
+  border-radius: ${({ theme }) => theme.spacing.borderRadius}px;
+  font-size: 0.875rem;
+  
+  &:hover {
+    opacity: 0.9;
+  }
+`;
+
+const ResultsSummary = styled.div`
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 1rem;
+  background: ${({ theme }) => theme.colors.surface};
+  border-radius: ${({ theme }) => theme.spacing.borderRadius}px;
+  border: 1px solid ${({ theme }) => theme.colors.secondary};
+`;
+
+const SummaryItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  
+  span {
+    font-size: 0.75rem;
+    color: ${({ theme }) => theme.colors.textMuted};
+  }
+  
+  strong {
+    font-size: 1.25rem;
+    color: ${({ theme }) => theme.colors.accent};
+  }
+`;
+
+const DemoModeBadge = styled.div`
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.5rem 1rem;
+  background: ${({ theme }) => theme.colors.accent};
+  color: ${({ theme }) => theme.colors.background};
+  border-radius: ${({ theme }) => theme.spacing.borderRadius}px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  z-index: 100;
+`;
+
 function WTFeeApp() {
   const { emotionalState, setEmotionalState } = useEmotionalTheme();
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState<'uploading' | 'processing' | 'complete' | 'error'>('uploading');
+  const [processingResult, setProcessingResult] = useState<ProcessingResponse | null>(null);
+  const [processingMessage, setProcessingMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
   
   const states = [
     { state: EmotionalState.HAUNTED, label: '👻 Haunted' },
@@ -112,38 +181,51 @@ function WTFeeApp() {
     { state: EmotionalState.RELIEVED, label: '😌 Relieved' },
   ];
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = useCallback(async (file: File) => {
     setUploadedFile(file);
     setIsProcessing(true);
     setUploadProgress(0);
     setUploadStatus('uploading');
+    setError(null);
+    setProcessingResult(null);
     
-    // Simulate upload progress
-    const uploadInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(uploadInterval);
+    try {
+      // Use the API service (real or mock based on environment)
+      const result = await uploadAndProcessDocument(file, (status, progress) => {
+        setProcessingMessage(status);
+        setUploadProgress(progress);
+        
+        if (progress < 50) {
+          setUploadStatus('uploading');
+        } else if (progress < 100) {
           setUploadStatus('processing');
-          
-          // Simulate processing
-          setTimeout(() => {
-            setUploadStatus('complete');
-            setIsProcessing(false);
-            setEmotionalState(EmotionalState.PROCESSING);
-          }, 2000);
-          
-          return 100;
         }
-        return prev + Math.random() * 15;
       });
-    }, 200);
-  };
+      
+      setProcessingResult(result);
+      setUploadStatus('complete');
+      setIsProcessing(false);
+      setEmotionalState(EmotionalState.PROCESSING);
+      
+      console.log('Document processed:', result);
+      console.log(`Found ${result.lineItems.length} line items`);
+      console.log(`Total: $${result.metadata.totalAmount?.toFixed(2)}`);
+      
+    } catch (err: any) {
+      console.error('Processing failed:', err);
+      setError(err.message || 'Failed to process document');
+      setUploadStatus('error');
+      setIsProcessing(false);
+    }
+  }, [setEmotionalState]);
 
   const handleRemoveFile = () => {
     setUploadedFile(null);
     setIsProcessing(false);
     setUploadProgress(0);
     setUploadStatus('uploading');
+    setProcessingResult(null);
+    setError(null);
     setEmotionalState(EmotionalState.HAUNTED);
   };
 
@@ -192,17 +274,43 @@ function WTFeeApp() {
                   progress={Math.min(uploadProgress, 100)}
                   fileName={uploadedFile.name}
                   status={uploadStatus}
+                  message={processingMessage}
                 />
               )}
               
-              {!isProcessing && uploadStatus === 'complete' && (
-                <ActionButton
-                  onClick={handleAnalyze}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  🔮 Begin the Exorcism
-                </ActionButton>
+              {error && (
+                <ErrorDisplay>
+                  ⚠️ {error}
+                  <RetryButton onClick={() => handleFileUpload(uploadedFile)}>
+                    Try Again
+                  </RetryButton>
+                </ErrorDisplay>
+              )}
+              
+              {!isProcessing && uploadStatus === 'complete' && processingResult && (
+                <>
+                  <ResultsSummary>
+                    <SummaryItem>
+                      <span>📋 Line Items Found</span>
+                      <strong>{processingResult.lineItems.length}</strong>
+                    </SummaryItem>
+                    <SummaryItem>
+                      <span>💰 Total Amount</span>
+                      <strong>${processingResult.metadata.totalAmount?.toFixed(2) || '0.00'}</strong>
+                    </SummaryItem>
+                    <SummaryItem>
+                      <span>🎯 Confidence</span>
+                      <strong>{processingResult.confidence}%</strong>
+                    </SummaryItem>
+                  </ResultsSummary>
+                  <ActionButton
+                    onClick={handleAnalyze}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    🔮 Begin the Exorcism
+                  </ActionButton>
+                </>
               )}
             </motion.div>
           )}
@@ -237,6 +345,7 @@ function App() {
   return (
     <EmotionalThemeProvider initialState={EmotionalState.HAUNTED}>
       <GlobalStyles />
+      {isDemoMode() && <DemoModeBadge>🎃 Demo Mode</DemoModeBadge>}
       <AppLayout>
         <WTFeeApp />
       </AppLayout>

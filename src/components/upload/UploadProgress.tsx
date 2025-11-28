@@ -8,6 +8,7 @@ interface UploadProgressProps {
   fileName: string;
   status: 'uploading' | 'processing' | 'complete' | 'error';
   errorMessage?: string;
+  message?: string; // Custom status message from API
 }
 
 // Animations
@@ -217,9 +218,11 @@ export const UploadProgress: React.FC<UploadProgressProps> = ({
   fileName,
   status,
   errorMessage,
+  message,
 }) => {
   const { theme } = useEmotionalTheme();
-  const [statusMessage] = React.useState(() => getRandomMessage(status));
+  const [fallbackMessage] = React.useState(() => getRandomMessage(status));
+  const statusMessage = message || fallbackMessage;
   
   const getFileIcon = () => {
     if (fileName.toLowerCase().endsWith('.pdf')) return '📄';
