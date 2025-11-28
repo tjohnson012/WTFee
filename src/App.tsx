@@ -4,6 +4,7 @@ import { GlobalStyles } from './styles/GlobalStyles';
 import { AppLayout } from './components/layout';
 import { FlickerText } from './components/effects';
 import { UploadZone, UploadProgress, DocumentPreview } from './components/upload';
+import { BillAnalysis } from './components/analysis';
 import { uploadAndProcessDocument, ProcessingResponse, isDemoMode } from './services';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -173,6 +174,9 @@ function WTFeeApp() {
   const [processingResult, setProcessingResult] = useState<ProcessingResponse | null>(null);
   const [processingMessage, setProcessingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_showSummary, setShowSummary] = useState(false);
   
   const states = [
     { state: EmotionalState.HAUNTED, label: '👻 Haunted' },
@@ -230,9 +234,49 @@ function WTFeeApp() {
   };
 
   const handleAnalyze = () => {
-    setEmotionalState(EmotionalState.UNDERSTANDING);
-    // This would trigger the actual analysis in a real app
+    setShowAnalysis(true);
+    setEmotionalState(EmotionalState.PROCESSING);
   };
+
+  const handleAnalysisComplete = () => {
+    setShowSummary(true);
+    setEmotionalState(EmotionalState.RELIEVED);
+  };
+
+  const handleStartOver = () => {
+    setUploadedFile(null);
+    setIsProcessing(false);
+    setUploadProgress(0);
+    setUploadStatus('uploading');
+    setProcessingResult(null);
+    setError(null);
+    setShowAnalysis(false);
+    setShowSummary(false);
+    setEmotionalState(EmotionalState.HAUNTED);
+  };
+
+  // Show analysis view
+  if (showAnalysis && processingResult) {
+    return (
+      <DemoContainer style={{ maxWidth: '800px' }}>
+        <BillAnalysis 
+          result={processingResult} 
+          onComplete={handleAnalysisComplete}
+        />
+        
+        <Divider />
+        
+        <ActionButton
+          onClick={handleStartOver}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          style={{ background: 'transparent', border: '1px solid', borderColor: 'inherit' }}
+        >
+          ← Upload Another Bill
+        </ActionButton>
+      </DemoContainer>
+    );
+  }
 
   return (
     <DemoContainer>

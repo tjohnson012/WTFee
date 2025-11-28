@@ -25,6 +25,10 @@
 - [x] 2. Build the cursed document upload experience
   - Create haunting file upload component with drag-and-drop functionality
   - Implement file validation with eerie error states and supernatural feedback
+
+
+
+
   - Add parchment texture and ominous glow effects to uploaded documents
   - Build upload progress indicator with haunting visual effects (pulsing shadows, fog)
   - Create error handling with spooky but clear messaging
