@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { EmotionalThemeProvider, EmotionalState, useEmotionalTheme } from './theme';
 import { GlobalStyles } from './styles/GlobalStyles';
 import { AppLayout } from './components/layout';
@@ -6,7 +6,9 @@ import { FlickerText } from './components/effects';
 import { UploadZone, UploadProgress, DocumentPreview } from './components/upload';
 import { BillAnalysis } from './components/analysis';
 import { BillSummary } from './components/summary';
+import { PrivacyNotice } from './components/common';
 import { uploadAndProcessDocument, ProcessingResponse, isDemoMode, LineItemExplanation } from './services';
+import { sessionManager } from './utils/security';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -186,6 +188,20 @@ function WTFeeApp() {
     { state: EmotionalState.RELIEVED, label: '😌 Relieved' },
   ];
 
+  // Cleanup session data on unmount or page close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      sessionManager.clearAll();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      sessionManager.clearAll();
+    };
+  }, []);
+
   const handleFileUpload = useCallback(async (file: File) => {
     setUploadedFile(file);
     setIsProcessing(true);
@@ -308,6 +324,8 @@ function WTFeeApp() {
         Upload your haunted medical bill and let us exorcise the confusion. 
         We'll translate the cryptic codes and reveal what you're really being charged for.
       </Description>
+
+      <PrivacyNotice compact />
       
       <UploadSection>
         <AnimatePresence mode="wait">
