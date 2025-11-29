@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExtractedLineItem } from '../../services/api';
+import { compareItemCost } from '../../services/costComparisonService';
+import { CostComparisonDisplay } from './CostComparison';
 
 interface LineItemProps {
   item: ExtractedLineItem;
@@ -10,6 +12,7 @@ interface LineItemProps {
   explanation?: string;
   onExplain: () => void;
   isLoading?: boolean;
+  showCostComparison?: boolean;
 }
 
 // Animations
@@ -170,9 +173,13 @@ export const LineItem: React.FC<LineItemProps> = ({
   isExplained,
   explanation,
   onExplain,
-  isLoading = false
+  isLoading = false,
+  showCostComparison = true
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Calculate cost comparison
+  const costComparison = useMemo(() => compareItemCost(item), [item]);
 
   const handleClick = () => {
     if (isExplained) {
@@ -231,14 +238,20 @@ export const LineItem: React.FC<LineItemProps> = ({
       </ItemHeader>
       
       <AnimatePresence>
-        {isExplained && isExpanded && explanation && (
+        {isExplained && isExpanded && (
           <ExplanationPanel
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <ExplanationText>{explanation}</ExplanationText>
+            {explanation && <ExplanationText>{explanation}</ExplanationText>}
+            
+            {showCostComparison && costComparison && (
+              <div style={{ marginTop: '1rem' }}>
+                <CostComparisonDisplay comparison={costComparison} />
+              </div>
+            )}
           </ExplanationPanel>
         )}
       </AnimatePresence>
