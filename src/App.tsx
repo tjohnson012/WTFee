@@ -6,7 +6,7 @@ import { FlickerText } from './components/effects';
 import { UploadZone, UploadProgress, DocumentPreview } from './components/upload';
 import { BillAnalysis } from './components/analysis';
 import { BillSummary } from './components/summary';
-import { PrivacyNotice } from './components/common';
+import { PrivacyNotice, ErrorBoundary, OfflineBanner } from './components/common';
 import { uploadAndProcessDocument, ProcessingResponse, isDemoMode, LineItemExplanation } from './services';
 import { sessionManager } from './utils/security';
 import styled from 'styled-components';
@@ -422,13 +422,16 @@ function WTFeeApp() {
 
 function App() {
   return (
-    <EmotionalThemeProvider initialState={EmotionalState.HAUNTED}>
-      <GlobalStyles />
-      {isDemoMode() && <DemoModeBadge>🎃 Demo Mode</DemoModeBadge>}
-      <AppLayout>
-        <WTFeeApp />
-      </AppLayout>
-    </EmotionalThemeProvider>
+    <ErrorBoundary>
+      <EmotionalThemeProvider initialState={EmotionalState.HAUNTED}>
+        <GlobalStyles />
+        <OfflineBanner />
+        {isDemoMode() && <DemoModeBadge>🎃 Demo Mode</DemoModeBadge>}
+        <AppLayout>
+          <WTFeeApp />
+        </AppLayout>
+      </EmotionalThemeProvider>
+    </ErrorBoundary>
   );
 }
 
