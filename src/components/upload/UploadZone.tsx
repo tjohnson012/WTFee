@@ -278,10 +278,23 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         $isDragActive={isDragActive}
         $hasError={!!error}
         $isProcessing={isProcessing}
+        role="button"
+        aria-label="Upload medical bill. Drag and drop a file here, or click to select. Accepts PDF, JPG, and PNG files up to 10MB."
+        tabIndex={0}
       >
-        <input {...getInputProps()} />
+        <input 
+          {...getInputProps()} 
+          aria-label="File upload input"
+          aria-describedby="upload-instructions"
+        />
         
-        <FogOverlay $opacity={theme.effects.fogOpacity} />
+        <FogOverlay $opacity={theme.effects.fogOpacity} aria-hidden="true" />
+        
+        {/* Screen reader instructions */}
+        <span id="upload-instructions" className="sr-only">
+          Upload your medical bill by dragging and dropping a file, or press Enter to open file browser.
+          Supported formats: PDF, JPG, PNG. Maximum file size: 10 megabytes.
+        </span>
         
         <ContentWrapper>
         <AnimatePresence mode="wait">

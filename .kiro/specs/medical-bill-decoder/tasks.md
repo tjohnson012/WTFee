@@ -65,6 +65,9 @@
 - [ ] 5. Integrate Claude API for AI-powered explanations
   - Set up Claude API integration in Lambda functions
   - Create prompt engineering for medical bill explanations in plain English
+
+
+
   - Implement batch processing for multiple line items with progress tracking
   - Add medical context and cost analysis to explanations
   - Build fallback system for AI service unavailability

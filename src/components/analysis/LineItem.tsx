@@ -197,10 +197,25 @@ export const LineItem: React.FC<LineItemProps> = ({
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.1, duration: 0.3 }}
       layout
+      role="article"
+      aria-label={`Line item: ${item.description || item.rawText}, Amount: $${item.amount?.toFixed(2) || '0.00'}${item.isDuplicate ? ', Warning: Duplicate charge' : ''}`}
     >
-      {isLoading && <LoadingBar />}
+      {isLoading && <LoadingBar aria-label="Loading explanation" />}
       
-      <ItemHeader $isExplained={isExplained} onClick={handleClick}>
+      <ItemHeader 
+        $isExplained={isExplained} 
+        onClick={handleClick}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        aria-label={isExplained ? 'Click to expand explanation' : 'Click to get explanation'}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
+      >
         <ItemInfo>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {item.code && (
