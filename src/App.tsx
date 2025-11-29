@@ -7,6 +7,7 @@ import { UploadZone, UploadProgress, DocumentPreview } from './components/upload
 import { BillAnalysis } from './components/analysis';
 import { BillSummary } from './components/summary';
 import { PrivacyNotice, ErrorBoundary, OfflineBanner } from './components/common';
+import { DemoSelector } from './components/demo';
 import { uploadAndProcessDocument, ProcessingResponse, isDemoMode, LineItemExplanation } from './services';
 import { sessionManager } from './utils/security';
 import styled from 'styled-components';
@@ -329,13 +330,24 @@ function WTFeeApp() {
       
       <UploadSection>
         <AnimatePresence mode="wait">
-          {!uploadedFile ? (
-            <UploadZone
-              key="upload-zone"
-              onFileUpload={handleFileUpload}
-              isProcessing={isProcessing}
-            />
-          ) : (
+          {!uploadedFile && !processingResult ? (
+            <>
+              <UploadZone
+                key="upload-zone"
+                onFileUpload={handleFileUpload}
+                isProcessing={isProcessing}
+              />
+              {isDemoMode() && (
+                <DemoSelector 
+                  onSelectDemo={(result) => {
+                    setProcessingResult(result);
+                    setUploadStatus('complete');
+                    setEmotionalState(EmotionalState.PROCESSING);
+                  }} 
+                />
+              )}
+            </>
+          ) : uploadedFile ? (
             <motion.div
               key="file-preview"
               initial={{ opacity: 0 }}
@@ -392,7 +404,37 @@ function WTFeeApp() {
                 </>
               )}
             </motion.div>
-          )}
+          ) : processingResult && !uploadedFile ? (
+            <motion.div
+              key="demo-result"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}
+            >
+              <ResultsSummary>
+                <SummaryItem>
+                  <span>📋 Line Items Found</span>
+                  <strong>{processingResult.lineItems.length}</strong>
+                </SummaryItem>
+                <SummaryItem>
+                  <span>💰 Total Amount</span>
+                  <strong>${processingResult.metadata.totalAmount?.toFixed(2) || '0.00'}</strong>
+                </SummaryItem>
+                <SummaryItem>
+                  <span>🎯 Confidence</span>
+                  <strong>{processingResult.confidence}%</strong>
+                </SummaryItem>
+              </ResultsSummary>
+              <ActionButton
+                onClick={handleAnalyze}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                🔮 Begin the Exorcism
+              </ActionButton>
+            </motion.div>
+          ) : null}
         </AnimatePresence>
       </UploadSection>
       
