@@ -8,7 +8,7 @@ import { getExplanation, formatExplanationText, LineItemExplanation } from '../.
 
 interface BillAnalysisProps {
   result: ProcessingResponse;
-  onComplete: () => void;
+  onComplete: (explanations: Record<string, LineItemExplanation>) => void;
 }
 
 // Animations (fogClear reserved for future use)
@@ -367,7 +367,7 @@ export const BillAnalysis: React.FC<BillAnalysisProps> = ({ result, onComplete }
         {isComplete && (
           <>
             <ActionButton
-              onClick={onComplete}
+              onClick={() => onComplete(explanations)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >

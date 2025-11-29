@@ -5,7 +5,8 @@ import { AppLayout } from './components/layout';
 import { FlickerText } from './components/effects';
 import { UploadZone, UploadProgress, DocumentPreview } from './components/upload';
 import { BillAnalysis } from './components/analysis';
-import { uploadAndProcessDocument, ProcessingResponse, isDemoMode } from './services';
+import { BillSummary } from './components/summary';
+import { uploadAndProcessDocument, ProcessingResponse, isDemoMode, LineItemExplanation } from './services';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -175,8 +176,8 @@ function WTFeeApp() {
   const [processingMessage, setProcessingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [_showSummary, setShowSummary] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [explanations, setExplanations] = useState<Record<string, LineItemExplanation>>({});
   
   const states = [
     { state: EmotionalState.HAUNTED, label: '👻 Haunted' },
@@ -238,8 +239,10 @@ function WTFeeApp() {
     setEmotionalState(EmotionalState.PROCESSING);
   };
 
-  const handleAnalysisComplete = () => {
+  const handleAnalysisComplete = (expls: Record<string, LineItemExplanation>) => {
+    setExplanations(expls);
     setShowSummary(true);
+    setShowAnalysis(false);
     setEmotionalState(EmotionalState.RELIEVED);
   };
 
@@ -252,8 +255,22 @@ function WTFeeApp() {
     setError(null);
     setShowAnalysis(false);
     setShowSummary(false);
+    setExplanations({});
     setEmotionalState(EmotionalState.HAUNTED);
   };
+
+  // Show summary view
+  if (showSummary && processingResult) {
+    return (
+      <DemoContainer style={{ maxWidth: '800px' }}>
+        <BillSummary
+          result={processingResult}
+          explanations={explanations}
+          onStartOver={handleStartOver}
+        />
+      </DemoContainer>
+    );
+  }
 
   // Show analysis view
   if (showAnalysis && processingResult) {
