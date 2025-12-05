@@ -1,0 +1,117 @@
+name: Deploy WTFee
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  NODE_VERSION: '18'
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+  deploy:
+    name: Deploy to AWS
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Build and deploy frontend
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.API_URL }}
+
+      # Build and deploy backend
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Build backend
+        run: npm run build
+        working-directory: backend
+
+      - name: Install CDK
+        run: npm install -g aws-cdk
+
+      - name: Install infrastructure dependencies
+        run: npm install
+        working-directory: backend/infrastructure
+
+      - name: Deploy CDK Stack
+        run: cdk deploy --require-approval never --outputs-file cdk-outputs.json
+        working-directory: backend/infrastructure
+
+      # Upload frontend to S3
+      - name: Get S3 bucket name
+        id: get-bucket
+        run: |
+          BUCKET=$(cat backend/infrastructure/cdk-outputs.json | jq -r '.WTFeeStack.FrontendBucketName')
+          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+
+      - name: Sync frontend to S3
+        run: |
+          aws s3 sync dist/ s3://${{ steps.get-bucket.outputs.bucket }} --delete
+
+      # Invalidate CloudFront cache
+      - name: Get CloudFront distribution ID
+        id: get-cf
+        run: |
+          DIST_ID=$(cat backend/infrastructure/cdk-outputs.json | jq -r '.WTFeeStack.CloudFrontDistributionId')
+          echo "distribution_id=$DIST_ID" >> $GITHUB_OUTPUT
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.get-cf.outputs.distribution_id }} \
+            --paths "/*"
+
+      - name: Output deployment URL
+        run: |
+          URL=$(cat backend/infrastructure/cdk-outputs.json | jq -r '.WTFeeStack.CloudFrontUrl')
+          echo "🚀 Deployed to: $URL"
